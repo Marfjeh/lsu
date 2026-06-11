@@ -27,6 +27,8 @@ pub enum UiCommand {
     Refresh,
     MoveDown,
     MoveUp,
+    PageDown,
+    PageUp,
     OpenDetail,
     BackToList,
     RefreshDetail,
@@ -46,6 +48,8 @@ pub fn map_key(view_mode: ViewMode, key: KeyCode) -> Option<UiCommand> {
             KeyCode::Char('r') => Some(UiCommand::Refresh),
             KeyCode::Down => Some(UiCommand::MoveDown),
             KeyCode::Up => Some(UiCommand::MoveUp),
+            KeyCode::PageDown => Some(UiCommand::PageDown),
+            KeyCode::PageUp => Some(UiCommand::PageUp),
             KeyCode::Char('l') | KeyCode::Enter => Some(UiCommand::OpenDetail),
             KeyCode::Char('s') => Some(UiCommand::RequestStartStop),
             KeyCode::Char('e') => Some(UiCommand::RequestEnableDisable),
@@ -56,6 +60,8 @@ pub fn map_key(view_mode: ViewMode, key: KeyCode) -> Option<UiCommand> {
             KeyCode::Char('r') => Some(UiCommand::Refresh),
             KeyCode::Down => Some(UiCommand::MoveDown),
             KeyCode::Up => Some(UiCommand::MoveUp),
+            KeyCode::PageDown => Some(UiCommand::PageDown),
+            KeyCode::PageUp => Some(UiCommand::PageUp),
             KeyCode::Esc | KeyCode::Char('b') => Some(UiCommand::BackToList),
             KeyCode::Char('l') => Some(UiCommand::RefreshDetail),
             _ => None,
@@ -125,6 +131,26 @@ mod tests {
         assert_eq!(
             map_key(ViewMode::Detail, KeyCode::Char('l')),
             Some(UiCommand::RefreshDetail)
+        );
+    }
+
+    #[test]
+    fn map_key_page_down_and_up_in_list_and_detail() {
+        assert_eq!(
+            map_key(ViewMode::List, KeyCode::PageDown),
+            Some(UiCommand::PageDown)
+        );
+        assert_eq!(
+            map_key(ViewMode::List, KeyCode::PageUp),
+            Some(UiCommand::PageUp)
+        );
+        assert_eq!(
+            map_key(ViewMode::Detail, KeyCode::PageDown),
+            Some(UiCommand::PageDown)
+        );
+        assert_eq!(
+            map_key(ViewMode::Detail, KeyCode::PageUp),
+            Some(UiCommand::PageUp)
         );
     }
 

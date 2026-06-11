@@ -107,6 +107,9 @@ fn resume_terminal(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Res
     Ok(())
 }
 
+/// Number of rows moved by a single Page Down / Page Up key press.
+const PAGE_STEP: usize = 10;
+
 /// Apply the result of a completed unit action: update the status line and schedule a refresh.
 ///
 /// This is the pure-logic counterpart to `run_confirmed_action`; it can be unit-tested
@@ -744,6 +747,50 @@ pub fn run() -> Result<()> {
                             }
                             ViewMode::Detail => detail.scroll = detail.scroll.saturating_sub(1),
                         },
+                        UiCommand::PageDown => match view_mode {
+                            ViewMode::List => {
+                                if !rows.is_empty() {
+                                    if selected_idx < rows.len() - 1 {
+                                        cancel_pending_action_resolution(
+                                            &mut action_resolution_worker_rx,
+                                            &list_status_line,
+                                            list_status_line_overrides_stale,
+                                            &mut status_line,
+                                            &mut status_line_overrides_stale,
+                                        );
+                                    }
+                                    selected_idx = std::cmp::min(
+                                        selected_idx.saturating_add(PAGE_STEP),
+                                        rows.len() - 1,
+                                    );
+                                }
+                            }
+                            ViewMode::Detail => {
+                                if !detail.logs.is_empty() {
+                                    detail.scroll = std::cmp::min(
+                                        detail.scroll.saturating_add(PAGE_STEP),
+                                        detail.logs.len() - 1,
+                                    );
+                                }
+                            }
+                        },
+                        UiCommand::PageUp => match view_mode {
+                            ViewMode::List => {
+                                if selected_idx > 0 {
+                                    cancel_pending_action_resolution(
+                                        &mut action_resolution_worker_rx,
+                                        &list_status_line,
+                                        list_status_line_overrides_stale,
+                                        &mut status_line,
+                                        &mut status_line_overrides_stale,
+                                    );
+                                }
+                                selected_idx = selected_idx.saturating_sub(PAGE_STEP);
+                            }
+                            ViewMode::Detail => {
+                                detail.scroll = detail.scroll.saturating_sub(PAGE_STEP);
+                            }
+                        },
                         UiCommand::OpenDetail => {
                             if let Some(row) = rows.get(selected_idx) {
                                 cancel_pending_action_resolution(
@@ -939,6 +986,50 @@ mod tests {
                 }
                 ViewMode::Detail => state.detail.scroll = state.detail.scroll.saturating_sub(1),
             },
+            UiCommand::PageDown => match state.view_mode {
+                ViewMode::List => {
+                    if !state.rows.is_empty() {
+                        if state.selected_idx < state.rows.len() - 1 {
+                            cancel_pending_action_resolution(
+                                &mut state.action_resolution_active,
+                                &state.list_status_line,
+                                state.list_status_line_overrides_stale,
+                                &mut state.status_line,
+                                &mut state.status_line_overrides_stale,
+                            );
+                        }
+                        state.selected_idx = std::cmp::min(
+                            state.selected_idx.saturating_add(super::PAGE_STEP),
+                            state.rows.len() - 1,
+                        );
+                    }
+                }
+                ViewMode::Detail => {
+                    if !state.detail.logs.is_empty() {
+                        state.detail.scroll = std::cmp::min(
+                            state.detail.scroll.saturating_add(super::PAGE_STEP),
+                            state.detail.logs.len() - 1,
+                        );
+                    }
+                }
+            },
+            UiCommand::PageUp => match state.view_mode {
+                ViewMode::List => {
+                    if state.selected_idx > 0 {
+                        cancel_pending_action_resolution(
+                            &mut state.action_resolution_active,
+                            &state.list_status_line,
+                            state.list_status_line_overrides_stale,
+                            &mut state.status_line,
+                            &mut state.status_line_overrides_stale,
+                        );
+                    }
+                    state.selected_idx = state.selected_idx.saturating_sub(super::PAGE_STEP);
+                }
+                ViewMode::Detail => {
+                    state.detail.scroll = state.detail.scroll.saturating_sub(super::PAGE_STEP);
+                }
+            },
             UiCommand::OpenDetail => {
                 if let Some(r) = state.rows.get(state.selected_idx) {
                     cancel_pending_action_resolution(
@@ -1075,6 +1166,105 @@ mod tests {
         assert!(!apply_command(&mut state, UiCommand::Refresh));
         assert!(state.refresh_requested);
         assert!(apply_command(&mut state, UiCommand::Quit));
+    }
+
+    fn page_state(rows_count: usize, selected: usize) -> TestUiState {
+        TestUiState {
+            view_mode: ViewMode::List,
+            rows: (0..rows_count).map(|i| row(&format!("{i}.service"))).collect(),
+            selected_idx: selected,
+            detail: DetailState::default(),
+            detail_worker_active: false,
+            action_resolution_active: None,
+            refresh_requested: false,
+            list_status_line: String::new(),
+            list_status_line_overrides_stale: false,
+            status_line: String::new(),
+            status_line_overrides_stale: false,
+        }
+    }
+
+    #[test]
+    fn page_down_advances_by_page_step_in_list_mode() {
+        let mut state = page_state(25, 0);
+        apply_command(&mut state, UiCommand::PageDown);
+        assert_eq!(state.selected_idx, super::PAGE_STEP);
+    }
+
+    #[test]
+    fn page_down_clamps_to_last_row_in_list_mode() {
+        let mut state = page_state(5, 3);
+        apply_command(&mut state, UiCommand::PageDown);
+        assert_eq!(state.selected_idx, 4);
+    }
+
+    #[test]
+    fn page_down_on_empty_list_is_no_op() {
+        let mut state = page_state(0, 0);
+        apply_command(&mut state, UiCommand::PageDown);
+        assert_eq!(state.selected_idx, 0);
+    }
+
+    #[test]
+    fn page_up_retreats_by_page_step_in_list_mode() {
+        let mut state = page_state(25, 20);
+        apply_command(&mut state, UiCommand::PageUp);
+        assert_eq!(state.selected_idx, 20 - super::PAGE_STEP);
+    }
+
+    #[test]
+    fn page_up_clamps_to_first_row_in_list_mode() {
+        let mut state = page_state(25, 3);
+        apply_command(&mut state, UiCommand::PageUp);
+        assert_eq!(state.selected_idx, 0);
+    }
+
+    #[test]
+    fn page_down_and_up_scroll_detail_logs() {
+        let mut state = page_state(1, 0);
+        state.view_mode = ViewMode::Detail;
+        let id = state.detail.begin_for_unit("a.service".to_string());
+        let logs = (0..25)
+            .map(|i| crate::types::DetailLogEntry {
+                time: "t".to_string(),
+                log: format!("line {i}"),
+            })
+            .collect();
+        state.detail.apply_loaded(id, "a.service", logs);
+        state.detail.scroll = 0;
+
+        apply_command(&mut state, UiCommand::PageDown);
+        assert_eq!(state.detail.scroll, super::PAGE_STEP);
+
+        apply_command(&mut state, UiCommand::PageUp);
+        assert_eq!(state.detail.scroll, 0);
+    }
+
+    #[test]
+    fn page_down_clamps_to_last_log_in_detail_mode() {
+        let mut state = page_state(1, 0);
+        state.view_mode = ViewMode::Detail;
+        let id = state.detail.begin_for_unit("a.service".to_string());
+        let logs = (0..5)
+            .map(|i| crate::types::DetailLogEntry {
+                time: "t".to_string(),
+                log: format!("line {i}"),
+            })
+            .collect();
+        state.detail.apply_loaded(id, "a.service", logs);
+        state.detail.scroll = 3;
+
+        apply_command(&mut state, UiCommand::PageDown);
+        assert_eq!(state.detail.scroll, 4);
+    }
+
+    #[test]
+    fn page_down_on_empty_detail_logs_is_no_op() {
+        let mut state = page_state(1, 0);
+        state.view_mode = ViewMode::Detail;
+        state.detail.scroll = 0;
+        apply_command(&mut state, UiCommand::PageDown);
+        assert_eq!(state.detail.scroll, 0);
     }
 
     #[test]

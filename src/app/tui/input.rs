@@ -16,7 +16,7 @@
 
 //! Key-event translation for list and detail modes.
 
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyModifiers};
 
 use crate::types::{ConfirmationKind, ViewMode};
 
@@ -41,7 +41,10 @@ pub enum UiCommand {
 }
 
 /// Translate a key in the current view mode to a UI command.
-pub fn map_key(view_mode: ViewMode, key: KeyCode) -> Option<UiCommand> {
+pub fn map_key(view_mode: ViewMode, key: KeyCode, modifiers: KeyModifiers) -> Option<UiCommand> {
+    if modifiers.contains(KeyModifiers::CONTROL) && key == KeyCode::Char('c') {
+        return Some(UiCommand::Quit);
+    }
     match view_mode {
         ViewMode::List => match key {
             KeyCode::Char('q') => Some(UiCommand::Quit),
@@ -93,27 +96,27 @@ mod tests {
     #[test]
     fn map_key_list_mode_maps_navigation_and_opening() {
         assert_eq!(
-            map_key(ViewMode::List, KeyCode::Enter),
+            map_key(ViewMode::List, KeyCode::Enter, KeyModifiers::NONE),
             Some(UiCommand::OpenDetail)
         );
         assert_eq!(
-            map_key(ViewMode::List, KeyCode::Char('l')),
+            map_key(ViewMode::List, KeyCode::Char('l'), KeyModifiers::NONE),
             Some(UiCommand::OpenDetail)
         );
         assert_eq!(
-            map_key(ViewMode::List, KeyCode::Down),
+            map_key(ViewMode::List, KeyCode::Down, KeyModifiers::NONE),
             Some(UiCommand::MoveDown)
         );
         assert_eq!(
-            map_key(ViewMode::List, KeyCode::Up),
+            map_key(ViewMode::List, KeyCode::Up, KeyModifiers::NONE),
             Some(UiCommand::MoveUp)
         );
         assert_eq!(
-            map_key(ViewMode::List, KeyCode::Char('s')),
+            map_key(ViewMode::List, KeyCode::Char('s'), KeyModifiers::NONE),
             Some(UiCommand::RequestStartStop)
         );
         assert_eq!(
-            map_key(ViewMode::List, KeyCode::Char('e')),
+            map_key(ViewMode::List, KeyCode::Char('e'), KeyModifiers::NONE),
             Some(UiCommand::RequestEnableDisable)
         );
     }
@@ -121,15 +124,15 @@ mod tests {
     #[test]
     fn map_key_detail_mode_maps_back_and_refresh_detail() {
         assert_eq!(
-            map_key(ViewMode::Detail, KeyCode::Esc),
+            map_key(ViewMode::Detail, KeyCode::Esc, KeyModifiers::NONE),
             Some(UiCommand::BackToList)
         );
         assert_eq!(
-            map_key(ViewMode::Detail, KeyCode::Char('b')),
+            map_key(ViewMode::Detail, KeyCode::Char('b'), KeyModifiers::NONE),
             Some(UiCommand::BackToList)
         );
         assert_eq!(
-            map_key(ViewMode::Detail, KeyCode::Char('l')),
+            map_key(ViewMode::Detail, KeyCode::Char('l'), KeyModifiers::NONE),
             Some(UiCommand::RefreshDetail)
         );
     }
@@ -137,19 +140,19 @@ mod tests {
     #[test]
     fn map_key_page_down_and_up_in_list_and_detail() {
         assert_eq!(
-            map_key(ViewMode::List, KeyCode::PageDown),
+            map_key(ViewMode::List, KeyCode::PageDown, KeyModifiers::NONE),
             Some(UiCommand::PageDown)
         );
         assert_eq!(
-            map_key(ViewMode::List, KeyCode::PageUp),
+            map_key(ViewMode::List, KeyCode::PageUp, KeyModifiers::NONE),
             Some(UiCommand::PageUp)
         );
         assert_eq!(
-            map_key(ViewMode::Detail, KeyCode::PageDown),
+            map_key(ViewMode::Detail, KeyCode::PageDown, KeyModifiers::NONE),
             Some(UiCommand::PageDown)
         );
         assert_eq!(
-            map_key(ViewMode::Detail, KeyCode::PageUp),
+            map_key(ViewMode::Detail, KeyCode::PageUp, KeyModifiers::NONE),
             Some(UiCommand::PageUp)
         );
     }
@@ -157,19 +160,37 @@ mod tests {
     #[test]
     fn map_key_maps_quit_refresh_and_unknown_keys() {
         assert_eq!(
-            map_key(ViewMode::List, KeyCode::Char('q')),
+            map_key(ViewMode::List, KeyCode::Char('q'), KeyModifiers::NONE),
             Some(UiCommand::Quit)
         );
         assert_eq!(
-            map_key(ViewMode::List, KeyCode::Char('r')),
+            map_key(ViewMode::List, KeyCode::Char('r'), KeyModifiers::NONE),
             Some(UiCommand::Refresh)
         );
         assert_eq!(
-            map_key(ViewMode::Detail, KeyCode::Char('r')),
+            map_key(ViewMode::Detail, KeyCode::Char('r'), KeyModifiers::NONE),
             Some(UiCommand::Refresh)
         );
-        assert_eq!(map_key(ViewMode::Detail, KeyCode::Enter), None);
-        assert_eq!(map_key(ViewMode::Detail, KeyCode::Char('s')), None);
+        assert_eq!(
+            map_key(ViewMode::Detail, KeyCode::Enter, KeyModifiers::NONE),
+            None
+        );
+        assert_eq!(
+            map_key(ViewMode::Detail, KeyCode::Char('s'), KeyModifiers::NONE),
+            None
+        );
+    }
+
+    #[test]
+    fn map_key_ctrl_c_quits_in_all_modes() {
+        assert_eq!(
+            map_key(ViewMode::List, KeyCode::Char('c'), KeyModifiers::CONTROL),
+            Some(UiCommand::Quit)
+        );
+        assert_eq!(
+            map_key(ViewMode::Detail, KeyCode::Char('c'), KeyModifiers::CONTROL),
+            Some(UiCommand::Quit)
+        );
     }
 
     #[test]

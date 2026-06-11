@@ -685,7 +685,7 @@ pub fn run() -> Result<()> {
                         _ => {}
                     }
                 } else if confirmation.is_none()
-                    && let Some(cmd) = map_key(view_mode, k.code)
+                    && let Some(cmd) = map_key(view_mode, k.code, k.modifiers)
                 {
                     match cmd {
                         UiCommand::Quit => break,

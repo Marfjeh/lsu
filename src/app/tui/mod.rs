@@ -751,7 +751,7 @@ pub fn run() -> Result<()> {
                         UiCommand::PageDown => {
                             let page_step = terminal
                                 .size()
-                                .map_or(10, |r| r.height.saturating_sub(2) as usize)
+                                .map_or(10, |s| s.height.saturating_sub(4) as usize)
                                 .max(1);
                             match view_mode {
                                 ViewMode::List => {
@@ -784,7 +784,7 @@ pub fn run() -> Result<()> {
                         UiCommand::PageUp => {
                             let page_step = terminal
                                 .size()
-                                .map_or(10, |r| r.height.saturating_sub(2) as usize)
+                                .map_or(10, |s| s.height.saturating_sub(4) as usize)
                                 .max(1);
                             match view_mode {
                                 ViewMode::List => {
@@ -1184,7 +1184,9 @@ mod tests {
     fn page_state(rows_count: usize, selected: usize) -> TestUiState {
         TestUiState {
             view_mode: ViewMode::List,
-            rows: (0..rows_count).map(|i| row(&format!("{i}.service"))).collect(),
+            rows: (0..rows_count)
+                .map(|i| row(&format!("{i}.service")))
+                .collect(),
             selected_idx: selected,
             detail: DetailState::default(),
             detail_worker_active: false,

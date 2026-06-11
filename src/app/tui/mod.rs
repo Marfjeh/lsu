@@ -107,7 +107,8 @@ fn resume_terminal(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Res
     Ok(())
 }
 
-/// Number of rows moved by a single Page Down / Page Up key press.
+/// Fallback page step used in tests (where no real terminal is available).
+#[cfg(test)]
 const PAGE_STEP: usize = 10;
 
 /// Apply the result of a completed unit action: update the status line and schedule a refresh.
@@ -747,10 +748,47 @@ pub fn run() -> Result<()> {
                             }
                             ViewMode::Detail => detail.scroll = detail.scroll.saturating_sub(1),
                         },
-                        UiCommand::PageDown => match view_mode {
-                            ViewMode::List => {
-                                if !rows.is_empty() {
-                                    if selected_idx < rows.len() - 1 {
+                        UiCommand::PageDown => {
+                            let page_step = terminal
+                                .size()
+                                .map_or(10, |r| r.height.saturating_sub(2) as usize)
+                                .max(1);
+                            match view_mode {
+                                ViewMode::List => {
+                                    if !rows.is_empty() {
+                                        if selected_idx < rows.len() - 1 {
+                                            cancel_pending_action_resolution(
+                                                &mut action_resolution_worker_rx,
+                                                &list_status_line,
+                                                list_status_line_overrides_stale,
+                                                &mut status_line,
+                                                &mut status_line_overrides_stale,
+                                            );
+                                        }
+                                        selected_idx = std::cmp::min(
+                                            selected_idx.saturating_add(page_step),
+                                            rows.len() - 1,
+                                        );
+                                    }
+                                }
+                                ViewMode::Detail => {
+                                    if !detail.logs.is_empty() {
+                                        detail.scroll = std::cmp::min(
+                                            detail.scroll.saturating_add(page_step),
+                                            detail.logs.len() - 1,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        UiCommand::PageUp => {
+                            let page_step = terminal
+                                .size()
+                                .map_or(10, |r| r.height.saturating_sub(2) as usize)
+                                .max(1);
+                            match view_mode {
+                                ViewMode::List => {
+                                    if selected_idx > 0 {
                                         cancel_pending_action_resolution(
                                             &mut action_resolution_worker_rx,
                                             &list_status_line,
@@ -759,38 +797,13 @@ pub fn run() -> Result<()> {
                                             &mut status_line_overrides_stale,
                                         );
                                     }
-                                    selected_idx = std::cmp::min(
-                                        selected_idx.saturating_add(PAGE_STEP),
-                                        rows.len() - 1,
-                                    );
+                                    selected_idx = selected_idx.saturating_sub(page_step);
+                                }
+                                ViewMode::Detail => {
+                                    detail.scroll = detail.scroll.saturating_sub(page_step);
                                 }
                             }
-                            ViewMode::Detail => {
-                                if !detail.logs.is_empty() {
-                                    detail.scroll = std::cmp::min(
-                                        detail.scroll.saturating_add(PAGE_STEP),
-                                        detail.logs.len() - 1,
-                                    );
-                                }
-                            }
-                        },
-                        UiCommand::PageUp => match view_mode {
-                            ViewMode::List => {
-                                if selected_idx > 0 {
-                                    cancel_pending_action_resolution(
-                                        &mut action_resolution_worker_rx,
-                                        &list_status_line,
-                                        list_status_line_overrides_stale,
-                                        &mut status_line,
-                                        &mut status_line_overrides_stale,
-                                    );
-                                }
-                                selected_idx = selected_idx.saturating_sub(PAGE_STEP);
-                            }
-                            ViewMode::Detail => {
-                                detail.scroll = detail.scroll.saturating_sub(PAGE_STEP);
-                            }
-                        },
+                        }
                         UiCommand::OpenDetail => {
                             if let Some(row) = rows.get(selected_idx) {
                                 cancel_pending_action_resolution(

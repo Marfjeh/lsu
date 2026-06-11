@@ -22,7 +22,7 @@ use crate::types::{ConfirmationKind, ConfirmationState};
 pub const MODE_LABEL: &str = "services";
 
 fn list_controls_text() -> &'static str {
-    "↑/↓: select | l/enter: inspect logs | s: start/restart/stop | e: enable/disable | r: refresh | q: quit"
+    "↑/↓/PgUp/PgDn: select | l/enter: inspect logs | s: start/restart/stop | e: enable/disable | r: refresh | q: quit"
 }
 
 /// Build a list footer status text for idle, loading, and log-progress phases.

@@ -177,7 +177,7 @@ pub fn draw_frame(
                 format!("logs: {}", detail.logs.len())
             };
             let footer = Paragraph::new(format!(
-                "{} | {} | ↑/↓: scroll | b/esc: back | r: refresh | q: quit",
+                "{} | {} | ↑/↓/PgUp/PgDn: scroll | b/esc: back | r: refresh | q: quit",
                 unit_meta, detail_status
             ))
             .style(Style::default().fg(Color::DarkGray));
